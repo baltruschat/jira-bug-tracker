@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HAR 1.2 (Minimal - Jira Bug Tracker)",
+  "description": "Minimal HAR 1.2 schema for network capture export. Only includes fields that the extension populates.",
+  "type": "object",
+  "required": ["log"],
+  "properties": {
+    "log": {
+      "type": "object",
+      "required": ["version", "creator", "entries"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.2"
+        },
+        "creator": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" }
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["startedDateTime", "time", "request", "response", "cache", "timings"],
+            "properties": {
+              "startedDateTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "time": {
+                "type": "number",
+                "minimum": 0
+              },
+              "request": {
+                "type": "object",
+                "required": ["method", "url", "httpVersion", "headers", "queryString", "cookies", "headersSize", "bodySize"],
+                "properties": {
+                  "method": { "type": "string" },
+                  "url": { "type": "string", "format": "uri" },
+                  "httpVersion": { "type": "string" },
+                  "headers": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/nameValue" }
+                  },
+                  "queryString": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/nameValue" }
+                  },
+                  "cookies": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/nameValue" }
+                  },
+                  "headersSize": { "type": "integer" },
+                  "bodySize": { "type": "integer" },
+                  "postData": {
+                    "type": "object",
+                    "required": ["mimeType", "text"],
+                    "properties": {
+                      "mimeType": { "type": "string" },
+                      "text": { "type": "string" }
+                    }
+                  }
+                }
+              },
+              "response": {
+                "type": "object",
+                "required": ["status", "statusText", "httpVersion", "headers", "cookies", "content", "redirectURL", "headersSize", "bodySize"],
+                "properties": {
+                  "status": { "type": "integer" },
+                  "statusText": { "type": "string" },
+                  "httpVersion": { "type": "string" },
+                  "headers": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/nameValue" }
+                  },
+                  "cookies": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/nameValue" }
+                  },
+                  "content": {
+                    "type": "object",
+                    "required": ["size", "mimeType"],
+                    "properties": {
+                      "size": { "type": "integer", "minimum": 0 },
+                      "mimeType": { "type": "string" },
+                      "text": { "type": "string" }
+                    }
+                  },
+                  "redirectURL": { "type": "string" },
+                  "headersSize": { "type": "integer" },
+                  "bodySize": { "type": "integer" }
+                }
+              },
+              "cache": {
+                "type": "object"
+              },
+              "timings": {
+                "type": "object",
+                "required": ["send", "wait", "receive"],
+                "properties": {
+                  "send": { "type": "number", "minimum": 0 },
+                  "wait": { "type": "number", "minimum": 0 },
+                  "receive": { "type": "number", "minimum": 0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "nameValue": {
+      "type": "object",
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "type": "string" }
+      }
+    }
+  }
+}
