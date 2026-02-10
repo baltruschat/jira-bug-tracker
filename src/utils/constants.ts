@@ -13,7 +13,7 @@ export const JIRA_API_BASE = 'https://api.atlassian.com/ex/jira';
 // OAuth Scopes
 // ============================================================
 
-export const OAUTH_SCOPES = ['read:jira-work', 'write:jira-work', 'offline_access'];
+export const OAUTH_SCOPES = ['read:jira-work', 'write:jira-work', 'read:me', 'offline_access'];
 
 // ============================================================
 // Limits

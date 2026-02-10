@@ -3,7 +3,8 @@ import type {
   JiraAccessibleResource,
   JiraConnectionTokens,
 } from '../models/types';
-import { getSession, setSession, removeSession } from '../storage/chrome-storage';
+// Tokens must use local storage (not session) to persist across browser restarts
+// and service worker termination in MV3.
 import {
   OAUTH_AUTHORIZE_URL,
   OAUTH_TOKEN_URL,
@@ -143,10 +144,10 @@ export function isTokenExpired(expiresAt: number): boolean {
 export async function getValidToken(
   connectionId: string,
 ): Promise<string> {
-  const tokens = await getSession(`tokens:${connectionId}`) as JiraConnectionTokens | undefined;
+  const tokens = await getTokensFromStorage(connectionId);
 
   if (!tokens) {
-    throw new Error('No tokens found for this connection');
+    throw new Error('No tokens found for this connection — please reconnect');
   }
 
   if (!isTokenExpired(tokens.tokenExpiresAt)) {
@@ -167,9 +168,18 @@ export async function storeTokens(
     refreshToken: tokenData.refresh_token,
     tokenExpiresAt: Date.now() + tokenData.expires_in * 1000,
   };
-  await setSession(`tokens:${connectionId}`, tokens);
+  const key = `tokens:${connectionId}`;
+  await chrome.storage.local.set({ [key]: tokens });
 }
 
 export async function removeTokens(connectionId: string): Promise<void> {
-  await removeSession(`tokens:${connectionId}`);
+  await chrome.storage.local.remove(`tokens:${connectionId}`);
+}
+
+async function getTokensFromStorage(
+  connectionId: string,
+): Promise<JiraConnectionTokens | undefined> {
+  const key = `tokens:${connectionId}`;
+  const result = await chrome.storage.local.get(key);
+  return result[key] as JiraConnectionTokens | undefined;
 }

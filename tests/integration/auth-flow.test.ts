@@ -7,7 +7,13 @@ import {
   refreshAccessToken,
 } from '../../src/services/auth';
 import { completeOAuthFlow, getConnections } from '../../src/models/connection';
-import { getSession } from '../../src/storage/chrome-storage';
+
+// Helper to read tokens directly from local storage (dynamic keys)
+async function getStoredTokens(connectionId: string) {
+  const key = `tokens:${connectionId}`;
+  const result = await chrome.storage.local.get(key);
+  return result[key] as { accessToken: string; refreshToken: string; tokenExpiresAt: number } | undefined;
+}
 
 describe('auth flow integration', () => {
   beforeEach(() => {
@@ -42,13 +48,12 @@ describe('auth flow integration', () => {
         },
       ];
 
-      // Mock user info
+      // Mock user info (Atlassian Identity /me endpoint format)
       const mockUser = {
-        accountId: 'user-123',
-        displayName: 'John Doe',
-        emailAddress: 'john@example.com',
-        active: true,
-        avatarUrls: { '48x48': 'https://avatar.example.com/user.png' },
+        account_id: 'user-123',
+        name: 'John Doe',
+        email: 'john@example.com',
+        picture: 'https://avatar.example.com/user.png',
       };
 
       // Set up fetch mock to handle sequential calls
@@ -66,7 +71,7 @@ describe('auth flow integration', () => {
         json: async () => mockResources,
       } as Response);
 
-      // 3rd call: current user (via authenticatedFetch)
+      // 3rd call: current user (Atlassian Identity /me)
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => mockUser,
@@ -84,11 +89,11 @@ describe('auth flow integration', () => {
       expect(connection.siteName).toBe('My Jira Site');
       expect(connection.siteUrl).toBe('https://mysite.atlassian.net');
 
-      // Verify tokens stored in session storage
-      const storedTokens = await getSession(`tokens:${connection.id}`);
+      // Verify tokens stored in local storage (persistent)
+      const storedTokens = await getStoredTokens(connection.id);
       expect(storedTokens).toBeDefined();
-      expect((storedTokens as { accessToken: string }).accessToken).toBe('test-access-token');
-      expect((storedTokens as { refreshToken: string }).refreshToken).toBe('test-refresh-token');
+      expect(storedTokens!.accessToken).toBe('test-access-token');
+      expect(storedTokens!.refreshToken).toBe('test-refresh-token');
 
       // Verify connection stored in local storage
       const storedConnections = await getConnections();
@@ -138,10 +143,10 @@ describe('auth flow integration', () => {
       expect(result.access_token).toBe('new-access-token');
       expect(result.refresh_token).toBe('new-refresh-token');
 
-      // Verify new tokens stored
-      const storedTokens = await getSession(`tokens:${connectionId}`);
-      expect((storedTokens as { accessToken: string }).accessToken).toBe('new-access-token');
-      expect((storedTokens as { refreshToken: string }).refreshToken).toBe('new-refresh-token');
+      // Verify new tokens stored in local storage
+      const storedTokens = await getStoredTokens(connectionId);
+      expect(storedTokens!.accessToken).toBe('new-access-token');
+      expect(storedTokens!.refreshToken).toBe('new-refresh-token');
     });
 
     it('should auto-refresh via getValidToken when tokens are expired', async () => {

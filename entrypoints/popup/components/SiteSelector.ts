@@ -30,6 +30,8 @@ export class SiteSelector {
       this.selectEl.appendChild(opt);
     }
 
+    if (selectedId) this.selectEl.value = selectedId;
+
     this.selectEl.addEventListener('change', () => {
       this.onChange(this.selectEl.value);
     });

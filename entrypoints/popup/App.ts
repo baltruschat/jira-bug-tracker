@@ -185,6 +185,35 @@ export class App {
     );
   }
 
+  private setReportError(message: string): void {
+    if (this.currentReport) {
+      this.currentReport = { ...this.currentReport, error: message };
+    }
+  }
+
+  private clearReportError(): void {
+    if (this.currentReport?.error) {
+      this.currentReport = { ...this.currentReport, error: null };
+    }
+  }
+
+  /**
+   * Captures in-progress form values (title, description) from the DOM
+   * so they survive a full re-render triggered by loadProjects/loadIssueTypes.
+   */
+  private captureFormState(): void {
+    if (!this.currentReport) return;
+    const titleEl = document.getElementById('report-title') as HTMLInputElement | null;
+    const descEl = document.getElementById('report-desc') as HTMLTextAreaElement | null;
+    if (titleEl !== null || descEl !== null) {
+      this.currentReport = {
+        ...this.currentReport,
+        title: titleEl?.value ?? this.currentReport.title,
+        description: descEl?.value ?? this.currentReport.description,
+      };
+    }
+  }
+
   // Actions
 
   private async startOAuth(): Promise<void> {
@@ -196,10 +225,12 @@ export class App {
 
     try {
       const result = await chrome.runtime.sendMessage({ type: 'START_OAUTH' });
+      console.log('[Popup] OAuth result:', result);
       if (result?.error) throw new Error(result.error);
       this.connections = await getConnections();
       this.navigateTo('connect');
-    } catch {
+    } catch (err) {
+      console.error('[Popup] OAuth error:', err);
       this.connections = await getConnections();
       this.navigateTo('connect');
     }
@@ -230,16 +261,35 @@ export class App {
   }
 
   private async loadProjects(siteId: string, query: string = ''): Promise<void> {
+    // Persist the selected site so it survives re-render
+    if (this.currentReport) {
+      this.currentReport = { ...this.currentReport, targetSiteId: siteId };
+    }
     try {
       const result = await chrome.runtime.sendMessage({
         type: 'LIST_PROJECTS',
         payload: { siteId, query },
       });
-      this.projects = result?.payload?.values ?? [];
+
+      if (result?.error) {
+        console.error('[Popup] Failed to load projects:', result.error);
+        this.setReportError(`Failed to load projects: ${result.error}`);
+        this.projects = [];
+      } else {
+        this.projects = result?.payload?.values ?? [];
+        this.clearReportError();
+      }
       this.issueTypes = [];
+      this.captureFormState();
       this.render();
-    } catch {
+    } catch (err) {
+      console.error('[Popup] Error loading projects:', err);
       this.projects = [];
+      this.setReportError(
+        `Failed to load projects: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      );
+      this.captureFormState();
+      this.render();
     }
   }
 
@@ -248,16 +298,36 @@ export class App {
   }
 
   private async loadIssueTypes(projectKey: string): Promise<void> {
+    // Persist the selected project so it survives re-render
+    if (this.currentReport) {
+      this.currentReport = { ...this.currentReport, projectKey };
+    }
     const siteId = this.currentReport?.targetSiteId ?? this.settings.defaultSiteId ?? '';
+    const project = this.projects.find((p) => p.key === projectKey);
     try {
       const result = await chrome.runtime.sendMessage({
         type: 'LIST_ISSUE_TYPES',
-        payload: { siteId, projectKey },
+        payload: { siteId, projectKey, projectId: project?.id },
       });
-      this.issueTypes = result?.payload?.values ?? [];
+
+      if (result?.error) {
+        console.error('[Popup] Failed to load issue types:', result.error);
+        this.setReportError(`Failed to load issue types: ${result.error}`);
+        this.issueTypes = [];
+      } else {
+        this.issueTypes = result?.payload?.values ?? [];
+        this.clearReportError();
+      }
+      this.captureFormState();
       this.render();
-    } catch {
+    } catch (err) {
+      console.error('[Popup] Error loading issue types:', err);
       this.issueTypes = [];
+      this.setReportError(
+        `Failed to load issue types: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      );
+      this.captureFormState();
+      this.render();
     }
   }
 

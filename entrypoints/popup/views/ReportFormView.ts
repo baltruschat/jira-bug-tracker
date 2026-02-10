@@ -107,14 +107,14 @@ export class ReportFormView {
           }
         : undefined,
     });
-    this.projectSelector.render(projects, report.projectKey);
+    this.projectSelector.render(projects, report.projectKey, !!report.targetSiteId);
     form.appendChild(projectGroup);
 
     // Issue type selector
     const typeGroup = document.createElement('div');
     typeGroup.className = 'form-group';
     this.issueTypeSelector = new IssueTypeSelector(typeGroup);
-    this.issueTypeSelector.render(issueTypes, report.issueTypeId);
+    this.issueTypeSelector.render(issueTypes, report.issueTypeId, !!report.projectKey);
     form.appendChild(typeGroup);
 
     // Data summary

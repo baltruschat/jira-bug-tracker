@@ -8,16 +8,25 @@ export class IssueTypeSelector {
     this.container = container;
   }
 
-  render(issueTypes: JiraIssueType[], selectedId: string = ''): void {
+  render(issueTypes: JiraIssueType[], selectedId: string = '', projectSelected: boolean = false): void {
     this.container.innerHTML = '<label>Issue Type *</label>';
 
     this.selectEl = document.createElement('select');
     this.selectEl.className = 'select';
     this.selectEl.required = true;
 
+    let placeholder: string;
+    if (issueTypes.length > 0) {
+      placeholder = 'Select issue type...';
+    } else if (projectSelected) {
+      placeholder = 'No issue types found';
+    } else {
+      placeholder = 'Select a project first...';
+    }
+
     const defaultOpt = document.createElement('option');
     defaultOpt.value = '';
-    defaultOpt.textContent = issueTypes.length === 0 ? 'Select a project first...' : 'Select issue type...';
+    defaultOpt.textContent = placeholder;
     this.selectEl.appendChild(defaultOpt);
 
     for (const issueType of issueTypes) {
@@ -27,6 +36,8 @@ export class IssueTypeSelector {
       if (issueType.id === selectedId) opt.selected = true;
       this.selectEl.appendChild(opt);
     }
+
+    if (selectedId) this.selectEl.value = selectedId;
 
     this.container.appendChild(this.selectEl);
   }

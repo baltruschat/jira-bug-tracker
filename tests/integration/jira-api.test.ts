@@ -197,6 +197,25 @@ describe('jira-api integration', () => {
       const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(call[0]).toContain('query=search-term');
     });
+
+    it('should handle flat array response (no values wrapper)', async () => {
+      await setupConnection();
+
+      const flatResponse = [
+        { id: 'p1', key: 'PROJ', name: 'Project One', projectTypeKey: 'software', avatarUrls: {} },
+      ];
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => flatResponse,
+      } as Response);
+
+      const result = await listProjects('conn-1');
+      expect(result.values).toHaveLength(1);
+      expect(result.values[0].key).toBe('PROJ');
+      expect(result.isLast).toBe(true);
+      expect(result.total).toBe(1);
+    });
   });
 
   describe('listIssueTypes', () => {
@@ -223,6 +242,147 @@ describe('jira-api integration', () => {
 
       const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(call[0]).toContain('/issue/createmeta/TEST/issuetypes');
+    });
+
+    it('should handle flat array response (no values wrapper)', async () => {
+      await setupConnection();
+
+      const flatResponse = [
+        { id: '1', name: 'Bug', subtask: false },
+        { id: '2', name: 'Sub-task', subtask: true },
+        { id: '3', name: 'Story', subtask: false },
+      ];
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => flatResponse,
+      } as Response);
+
+      const result = await listIssueTypes('conn-1', 'TEST');
+      expect(result.values).toHaveLength(2);
+      expect(result.values.map((t) => t.name)).toEqual(['Bug', 'Story']);
+      expect(result.isLast).toBe(true);
+    });
+
+    it('should fall back to /issuetype/project when createmeta returns empty and projectId provided', async () => {
+      await setupConnection();
+
+      const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+      // 1st call: createmeta returns empty
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ values: [], isLast: true }),
+      } as Response);
+
+      // 2nd call: /issuetype/project fallback returns project-specific types
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { id: '1', name: 'Bug', subtask: false },
+          { id: '2', name: 'Epic', subtask: false },
+          { id: '3', name: 'Sub-task', subtask: true },
+        ],
+      } as Response);
+
+      const result = await listIssueTypes('conn-1', 'TEST', '10100');
+      expect(result.values).toHaveLength(2);
+      expect(result.values.map((t) => t.name)).toEqual(['Bug', 'Epic']);
+
+      // Verify project-specific fallback URL was called
+      const secondCall = fetchMock.mock.calls[1];
+      expect(secondCall[0]).toContain('/issuetype/project?projectId=10100');
+      expect(secondCall[0]).not.toContain('createmeta');
+    });
+
+    it('should fall back to generic /issuetype when no projectId provided', async () => {
+      await setupConnection();
+
+      const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+      // 1st call: createmeta returns empty
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ values: [], isLast: true }),
+      } as Response);
+
+      // 2nd call: generic /issuetype (no projectId available)
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { id: '1', name: 'Bug', subtask: false },
+          { id: '2', name: 'Task', subtask: false },
+        ],
+      } as Response);
+
+      const result = await listIssueTypes('conn-1', 'TEST');
+      expect(result.values).toHaveLength(2);
+
+      const secondCall = fetchMock.mock.calls[1];
+      expect(secondCall[0]).toMatch(/\/issuetype$/);
+    });
+
+    it('should fall back to /issuetype/project when createmeta fails', async () => {
+      await setupConnection();
+
+      const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+      // 1st call: createmeta returns 404
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      } as Response);
+
+      // 2nd call: /issuetype/project fallback
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { id: '1', name: 'Task', subtask: false },
+        ],
+      } as Response);
+
+      const result = await listIssueTypes('conn-1', 'TEST', '10100');
+      expect(result.values).toHaveLength(1);
+      expect(result.values[0].name).toBe('Task');
+
+      const secondCall = fetchMock.mock.calls[1];
+      expect(secondCall[0]).toContain('/issuetype/project?projectId=10100');
+    });
+
+    it('should fall through all three endpoints: createmeta → /issuetype/project → /issuetype', async () => {
+      await setupConnection();
+
+      const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+      // 1st call: createmeta returns empty
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ values: [], isLast: true }),
+      } as Response);
+
+      // 2nd call: /issuetype/project also returns empty
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response);
+
+      // 3rd call: generic /issuetype returns types
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { id: '1', name: 'Bug', subtask: false },
+        ],
+      } as Response);
+
+      const result = await listIssueTypes('conn-1', 'TEST', '10100');
+      expect(result.values).toHaveLength(1);
+      expect(result.values[0].name).toBe('Bug');
+
+      // Verify all three calls
+      expect(fetchMock.mock.calls).toHaveLength(3);
+      expect(fetchMock.mock.calls[0][0]).toContain('createmeta');
+      expect(fetchMock.mock.calls[1][0]).toContain('/issuetype/project?projectId=10100');
+      expect(fetchMock.mock.calls[2][0]).toMatch(/\/issuetype$/);
     });
   });
 

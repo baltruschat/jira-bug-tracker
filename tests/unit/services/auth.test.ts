@@ -9,7 +9,12 @@ import {
   removeTokens,
   fetchAccessibleResources,
 } from '../../../src/services/auth';
-import { getSession } from '../../../src/storage/chrome-storage';
+// Helper to read tokens from local storage (dynamic keys)
+async function getStoredTokens(connectionId: string) {
+  const key = `tokens:${connectionId}`;
+  const result = await chrome.storage.local.get(key);
+  return result[key] as { accessToken: string; refreshToken: string; tokenExpiresAt: number } | undefined;
+}
 
 describe('auth service', () => {
   beforeEach(() => {
@@ -122,7 +127,7 @@ describe('auth service', () => {
       expect(body.refresh_token).toBe('old-refresh');
     });
 
-    it('should store new tokens in session storage', async () => {
+    it('should store new tokens in local storage', async () => {
       const mockResponse = {
         access_token: 'new-access',
         refresh_token: 'new-refresh',
@@ -137,10 +142,10 @@ describe('auth service', () => {
 
       await refreshAccessToken('conn-1', 'old-refresh');
 
-      const stored = await getSession('tokens:conn-1');
+      const stored = await getStoredTokens('conn-1');
       expect(stored).toBeDefined();
-      expect((stored as { accessToken: string }).accessToken).toBe('new-access');
-      expect((stored as { refreshToken: string }).refreshToken).toBe('new-refresh');
+      expect(stored!.accessToken).toBe('new-access');
+      expect(stored!.refreshToken).toBe('new-refresh');
     });
   });
 
@@ -169,7 +174,7 @@ describe('auth service', () => {
   });
 
   describe('storeTokens', () => {
-    it('should store tokens in session storage', async () => {
+    it('should store tokens in local storage (persists across browser restarts)', async () => {
       await storeTokens('conn-1', {
         access_token: 'access-abc',
         refresh_token: 'refresh-xyz',
@@ -177,14 +182,16 @@ describe('auth service', () => {
         scope: 'read:jira-work',
       });
 
-      const stored = await getSession('tokens:conn-1');
+      const stored = await getStoredTokens('conn-1');
       expect(stored).toBeDefined();
-      expect((stored as { accessToken: string }).accessToken).toBe('access-abc');
+      expect(stored!.accessToken).toBe('access-abc');
+      expect(stored!.refreshToken).toBe('refresh-xyz');
+      expect(stored!.tokenExpiresAt).toBeGreaterThan(Date.now());
     });
   });
 
   describe('removeTokens', () => {
-    it('should remove tokens from session storage', async () => {
+    it('should remove tokens from local storage', async () => {
       await storeTokens('conn-1', {
         access_token: 'access-abc',
         refresh_token: 'refresh-xyz',
@@ -193,7 +200,7 @@ describe('auth service', () => {
       });
 
       await removeTokens('conn-1');
-      const stored = await getSession('tokens:conn-1');
+      const stored = await getStoredTokens('conn-1');
       expect(stored).toBeUndefined();
     });
   });

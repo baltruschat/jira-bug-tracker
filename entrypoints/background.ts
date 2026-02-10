@@ -124,11 +124,16 @@ async function handleMessage(
 
       case 'START_OAUTH': {
         try {
+          console.log('[OAuth] Starting OAuth flow...');
           const { code } = await launchOAuthFlow();
+          console.log('[OAuth] Got authorization code, exchanging for tokens...');
           const tokenData = await exchangeCodeForTokens(code);
+          console.log('[OAuth] Got tokens, completing OAuth flow...');
           const connections = await completeOAuthFlow(tokenData);
+          console.log('[OAuth] Success! Connected sites:', connections.length);
           sendResponse({ payload: { connections } });
         } catch (err) {
+          console.error('[OAuth] Error:', err);
           sendResponse({ error: err instanceof Error ? err.message : 'OAuth failed' });
         }
         break;
@@ -154,7 +159,8 @@ async function handleMessage(
       case 'LIST_ISSUE_TYPES': {
         const siteId = message.payload?.siteId as string;
         const projectKey = message.payload?.projectKey as string;
-        const result = await listIssueTypes(siteId, projectKey);
+        const projectId = message.payload?.projectId as string | undefined;
+        const result = await listIssueTypes(siteId, projectKey, projectId);
         sendResponse({ payload: result });
         break;
       }

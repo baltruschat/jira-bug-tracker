@@ -124,28 +124,69 @@ export async function listProjects(
     throw new Error(`Failed to list projects (${response.status})`);
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // Handle both paginated response ({ values: [...] }) and flat array ([...])
+  const values: JiraProject[] = Array.isArray(data) ? data : (data.values ?? []);
+  return { values, isLast: data.isLast ?? true, total: data.total ?? values.length };
 }
 
 export async function listIssueTypes(
   connectionId: string,
   projectKey: string,
+  projectId?: string,
 ): Promise<{ values: JiraIssueType[]; isLast: boolean }> {
-  const response = await authenticatedFetch(
-    connectionId,
-    `/issue/createmeta/${projectKey}/issuetypes`,
-  );
+  // Try project-specific createmeta endpoint first
+  try {
+    const response = await authenticatedFetch(
+      connectionId,
+      `/issue/createmeta/${projectKey}/issuetypes`,
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const raw: JiraIssueType[] = Array.isArray(data) ? data : (data.values ?? []);
+      if (raw.length > 0) {
+        return { values: raw.filter((t) => !t.subtask), isLast: data.isLast ?? true };
+      }
+    }
+  } catch (err) {
+    console.warn('[JiraAPI] createmeta endpoint failed, trying fallback:', err);
+  }
+
+  // Fallback: project-specific issue types (needs numeric projectId)
+  if (projectId) {
+    try {
+      const response = await authenticatedFetch(
+        connectionId,
+        `/issuetype/project?projectId=${projectId}`,
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const raw: JiraIssueType[] = Array.isArray(data) ? data : (data.values ?? []);
+        const values = raw.filter((t) => !t.subtask);
+        if (values.length > 0) {
+          return { values, isLast: true };
+        }
+      }
+    } catch (err) {
+      console.warn('[JiraAPI] /issuetype/project fallback failed, trying generic:', err);
+    }
+  }
+
+  // Last resort: generic issue types endpoint (returns ALL site types — may include duplicates)
+  const response = await authenticatedFetch(connectionId, '/issuetype');
 
   if (!response.ok) {
     throw new Error(`Failed to list issue types (${response.status})`);
   }
 
-  const data: { values: JiraIssueType[]; isLast: boolean } = await response.json();
+  const data = await response.json();
+  const raw: JiraIssueType[] = Array.isArray(data) ? data : (data.values ?? []);
+  const values = raw.filter((t) => !t.subtask);
 
-  // Filter out subtasks
-  data.values = data.values.filter((t) => !t.subtask);
-
-  return data;
+  return { values, isLast: true };
 }
 
 export async function getCurrentUser(

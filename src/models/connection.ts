@@ -57,8 +57,13 @@ export async function completeOAuthFlow(
   const resources = await fetchAccessibleResources(tokenData.access_token);
   const newConnections: JiraConnection[] = [];
 
-  // Fetch user info using the first resource
-  const userInfo = await fetchCurrentUser(tokenData.access_token, resources[0]?.id ?? '');
+  // Fetch user info from Atlassian Identity API (uses read:me scope)
+  let userInfo = { displayName: 'User', accountId: '', avatarUrl: '' };
+  try {
+    userInfo = await fetchCurrentUser(tokenData.access_token);
+  } catch (err) {
+    console.warn('[OAuth] Could not fetch user info, using defaults:', err);
+  }
 
   for (const resource of resources) {
     const existing = await getConnections();
@@ -80,10 +85,11 @@ export async function completeOAuthFlow(
 
 async function fetchCurrentUser(
   accessToken: string,
-  cloudId: string,
 ): Promise<{ displayName: string; accountId: string; avatarUrl: string }> {
+  // Use Atlassian Identity API (/me) which works with the read:me scope
+  // instead of the Jira-specific /myself endpoint that needs cloudId
   const response = await fetch(
-    `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/myself`,
+    'https://api.atlassian.com/me',
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
 
@@ -93,8 +99,8 @@ async function fetchCurrentUser(
 
   const data = await response.json();
   return {
-    displayName: data.displayName,
-    accountId: data.accountId,
-    avatarUrl: data.avatarUrls?.['48x48'] ?? '',
+    displayName: data.name ?? 'User',
+    accountId: data.account_id ?? '',
+    avatarUrl: data.picture ?? '',
   };
 }
