@@ -238,6 +238,7 @@ export interface SubmitResultMessage {
     issueKey?: string;
     issueUrl?: string;
     error?: string;
+    warnings?: string[];
   };
 }
 
@@ -262,6 +263,90 @@ export type ExtensionMessage =
   | SubmitResultMessage
   | StartOAuthMessage
   | DisconnectSiteMessage;
+
+// ============================================================
+// HAR 1.2 Types
+// ============================================================
+
+/** Top-level HAR document structure (HAR 1.2 spec) */
+export interface HarDocument {
+  log: HarLog;
+}
+
+/** HAR log containing metadata and entries */
+export interface HarLog {
+  version: '1.2';
+  creator: HarCreator;
+  entries: HarEntry[];
+}
+
+/** Application that generated the HAR file */
+export interface HarCreator {
+  name: string;
+  version: string;
+}
+
+/** Single HTTP transaction entry */
+export interface HarEntry {
+  startedDateTime: string; // ISO 8601
+  time: number;            // Total elapsed ms
+  request: HarRequest;
+  response: HarResponse;
+  cache: Record<string, never>; // Empty object (not captured)
+  timings: HarTimings;
+}
+
+/** HTTP request details */
+export interface HarRequest {
+  method: string;
+  url: string;
+  httpVersion: string;
+  headers: HarNameValue[];
+  queryString: HarNameValue[];
+  cookies: HarNameValue[];
+  headersSize: number;  // -1 if unavailable
+  bodySize: number;     // -1 if unavailable
+  postData?: HarPostData;
+}
+
+/** HTTP response details */
+export interface HarResponse {
+  status: number;
+  statusText: string;
+  httpVersion: string;
+  headers: HarNameValue[];
+  cookies: HarNameValue[];
+  content: HarContent;
+  redirectURL: string;
+  headersSize: number;  // -1 if unavailable
+  bodySize: number;     // -1 if unavailable
+}
+
+/** Request body data */
+export interface HarPostData {
+  mimeType: string;
+  text: string;
+}
+
+/** Response body content */
+export interface HarContent {
+  size: number;
+  mimeType: string;
+  text?: string;
+}
+
+/** Timing breakdown */
+export interface HarTimings {
+  send: number;
+  wait: number;
+  receive: number;
+}
+
+/** Generic name-value pair (headers, query string, cookies) */
+export interface HarNameValue {
+  name: string;
+  value: string;
+}
 
 // ============================================================
 // Storage Key Types

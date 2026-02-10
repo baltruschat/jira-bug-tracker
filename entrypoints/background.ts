@@ -3,7 +3,9 @@ import { launchOAuthFlow, exchangeCodeForTokens } from '../src/services/auth';
 import { completeOAuthFlow, removeConnection } from '../src/models/connection';
 import { loadPendingReport } from '../src/models/bug-report';
 import { buildFullDescription } from '../src/services/adf-builder';
+import { buildHarFile } from '../src/services/har-builder';
 import { createIssue, uploadAttachment, listProjects, listIssueTypes } from '../src/services/jira-api';
+import { HAR_FILENAME } from '../src/utils/constants';
 import { dataUrlToBlob, exportAnnotatedScreenshot } from '../src/services/screenshot';
 import { addEntries } from '../src/services/console-collector';
 import { addRequest, updateRequest, correlateBody } from '../src/services/network-collector';
@@ -181,17 +183,29 @@ async function handleMessage(
             description,
             report.environment,
             report.consoleEntries,
-            report.networkRequests,
           );
 
           // Create issue
           const issue = await createIssue(siteId, projectKey, issueTypeId, title, adfDescription);
+
+          const warnings: string[] = [];
 
           // Upload screenshot attachment
           if (report.screenshot) {
             const dataUrl = exportAnnotatedScreenshot(report.screenshot);
             const blob = dataUrlToBlob(dataUrl);
             await uploadAttachment(siteId, issue.key, blob);
+          }
+
+          // Upload HAR file attachment
+          if (report.networkRequests.length > 0) {
+            try {
+              const harJson = buildHarFile(report.networkRequests);
+              const harBlob = new Blob([harJson], { type: 'application/json' });
+              await uploadAttachment(siteId, issue.key, harBlob, HAR_FILENAME);
+            } catch {
+              warnings.push('Network capture attachment upload failed');
+            }
           }
 
           // Get site URL for issue link
@@ -206,6 +220,7 @@ async function handleMessage(
               success: true,
               issueKey: issue.key,
               issueUrl,
+              ...(warnings.length > 0 ? { warnings } : {}),
             },
           });
         } catch (err) {

@@ -27,6 +27,7 @@ export class App {
   private projects: JiraProject[] = [];
   private issueTypes: JiraIssueType[] = [];
   private submitting = false;
+  private submitWarnings: string[] = [];
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -182,6 +183,7 @@ export class App {
     view.render(
       this.currentReport?.submittedIssueKey ?? '',
       this.currentReport?.submittedIssueUrl ?? '',
+      this.submitWarnings.length > 0 ? this.submitWarnings : undefined,
     );
   }
 
@@ -369,6 +371,7 @@ export class App {
           submittedIssueKey: result.payload.issueKey,
           submittedIssueUrl: result.payload.issueUrl,
         };
+        this.submitWarnings = result.payload.warnings ?? [];
         await clearPendingReport();
         this.submitting = false;
         this.navigateTo('success');

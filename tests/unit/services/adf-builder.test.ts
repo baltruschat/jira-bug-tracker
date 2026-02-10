@@ -3,9 +3,8 @@ import {
   buildFullDescription,
   buildEnvironmentTable,
   buildConsoleBlock,
-  buildNetworkBlock,
 } from '../../../src/services/adf-builder';
-import type { EnvironmentSnapshot, ConsoleEntry, NetworkRequest } from '../../../src/models/types';
+import type { EnvironmentSnapshot, ConsoleEntry } from '../../../src/models/types';
 
 const mockEnv: EnvironmentSnapshot = {
   browserName: 'Chrome',
@@ -25,34 +24,17 @@ const mockEntries: ConsoleEntry[] = [
   { timestamp: 1700000001000, level: 'error', message: 'fail', source: 'app.js:10' },
 ];
 
-const mockRequests: NetworkRequest[] = [
-  {
-    id: 'r1',
-    method: 'GET',
-    url: 'https://api.test/data',
-    statusCode: 200,
-    type: 'xhr',
-    startTime: 1700000000000,
-    endTime: 1700000000100,
-    duration: 100,
-    responseSize: 1024,
-    requestBody: null,
-    responseBody: '{"ok":true}',
-    error: null,
-  },
-];
-
 describe('adf-builder', () => {
   describe('buildFullDescription', () => {
     it('should produce valid ADF document', () => {
-      const doc = buildFullDescription('Bug description', mockEnv, mockEntries, mockRequests);
+      const doc = buildFullDescription('Bug description', mockEnv, mockEntries);
       expect(doc.version).toBe(1);
       expect(doc.type).toBe('doc');
       expect(doc.content.length).toBeGreaterThan(0);
     });
 
     it('should include user description as paragraph', () => {
-      const doc = buildFullDescription('My bug desc', null, [], []);
+      const doc = buildFullDescription('My bug desc', null, []);
       const descHeading = doc.content.find(
         (n) => n.type === 'heading' && n.content?.[0]?.text === 'Description',
       );
@@ -60,26 +42,30 @@ describe('adf-builder', () => {
     });
 
     it('should skip sections when data is empty', () => {
-      const doc = buildFullDescription('', null, [], []);
+      const doc = buildFullDescription('', null, []);
       expect(doc.content).toEqual([]);
     });
 
     it('should include environment table when present', () => {
-      const doc = buildFullDescription('', mockEnv, [], []);
+      const doc = buildFullDescription('', mockEnv, []);
       const table = doc.content.find((n) => n.type === 'table');
       expect(table).toBeDefined();
     });
 
     it('should include console codeBlock when entries present', () => {
-      const doc = buildFullDescription('', null, mockEntries, []);
+      const doc = buildFullDescription('', null, mockEntries);
       const code = doc.content.find((n) => n.type === 'codeBlock');
       expect(code).toBeDefined();
     });
 
-    it('should include network codeBlock when requests present', () => {
-      const doc = buildFullDescription('', null, [], mockRequests);
-      const code = doc.content.find((n) => n.type === 'codeBlock');
-      expect(code).toBeDefined();
+    it('should NOT include network code block even when requests are provided', () => {
+      // Network data is now conveyed exclusively through HAR attachment
+      const doc = buildFullDescription('description', mockEnv, mockEntries);
+      const allText = doc.content
+        .filter((n) => n.type === 'heading')
+        .map((n) => n.content?.[0]?.text ?? '')
+        .join(' ');
+      expect(allText).not.toContain('Network');
     });
   });
 
@@ -132,26 +118,4 @@ describe('adf-builder', () => {
     });
   });
 
-  describe('buildNetworkBlock', () => {
-    it('should produce codeBlock', () => {
-      const block = buildNetworkBlock(mockRequests);
-      expect(block.type).toBe('codeBlock');
-    });
-
-    it('should include method, URL, status, duration', () => {
-      const block = buildNetworkBlock(mockRequests);
-      const text = block.content?.[0]?.text ?? '';
-      expect(text).toContain('GET');
-      expect(text).toContain('https://api.test/data');
-      expect(text).toContain('200');
-      expect(text).toContain('100ms');
-    });
-
-    it('should include response body when present', () => {
-      const block = buildNetworkBlock(mockRequests);
-      const text = block.content?.[0]?.text ?? '';
-      expect(text).toContain('Response Body');
-      expect(text).toContain('{"ok":true}');
-    });
-  });
 });
