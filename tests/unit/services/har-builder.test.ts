@@ -148,6 +148,16 @@ describe('har-builder', () => {
       expect(entry.timings.receive).toBe(0);
     });
 
+    it('should set bodySize matching the redacted body length', () => {
+      const req = mockRequest({
+        requestBody: JSON.stringify({ password: 'secret', name: 'test' }),
+      });
+      const har = JSON.parse(buildHarFile([req]));
+      const entry = har.log.entries[0];
+
+      expect(entry.request.bodySize).toBe(entry.request.postData.text.length);
+    });
+
     it('should map multiple requests', () => {
       const requests = [
         mockRequest({ id: 'r1', url: 'https://api.example.com/a' }),
@@ -210,6 +220,57 @@ describe('har-builder', () => {
 
     it('should return null for null body', () => {
       expect(redactBody(null)).toBeNull();
+    });
+
+    it('should preserve JSON array structure and redact sensitive fields in array elements', () => {
+      const body = JSON.stringify([{ password: 'secret', name: 'ok' }]);
+      const result = redactBody(body);
+      const parsed = JSON.parse(result!);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed[0].password).toBe('[REDACTED]');
+      expect(parsed[0].name).toBe('ok');
+    });
+
+    it('should handle array of mixed objects correctly', () => {
+      const body = JSON.stringify([{ password: 'x' }, { name: 'safe' }]);
+      const result = redactBody(body);
+      const parsed = JSON.parse(result!);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed[0].password).toBe('[REDACTED]');
+      expect(parsed[1].name).toBe('safe');
+    });
+
+    it('should pass through JSON array of primitives without crash', () => {
+      const body = JSON.stringify([1, 2, 3]);
+      const result = redactBody(body);
+      const parsed = JSON.parse(result!);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed).toEqual([1, 2, 3]);
+    });
+
+    it('should redact sensitive field with empty string value', () => {
+      const body = JSON.stringify({ password: '' });
+      const result = redactBody(body);
+      const parsed = JSON.parse(result!);
+      expect(parsed.password).toBe('[REDACTED]');
+    });
+
+    it('should redact sensitive fields with non-string values', () => {
+      expect(JSON.parse(redactBody(JSON.stringify({ token: 12345 }))!).token).toBe('[REDACTED]');
+      expect(JSON.parse(redactBody(JSON.stringify({ password: null }))!).password).toBe('[REDACTED]');
+      expect(JSON.parse(redactBody(JSON.stringify({ password: true }))!).password).toBe('[REDACTED]');
+    });
+
+    it('should redact deeply nested fields (3 levels)', () => {
+      const body = JSON.stringify({ a: { b: { password: 'x' } } });
+      const result = redactBody(body);
+      const parsed = JSON.parse(result!);
+      expect(parsed.a.b.password).toBe('[REDACTED]');
+    });
+
+    it('should return JSON string primitive body as-is', () => {
+      const body = '"just a string"';
+      expect(redactBody(body)).toBe('"just a string"');
     });
 
     it('should apply redaction in full HAR output', () => {

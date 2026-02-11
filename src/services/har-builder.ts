@@ -84,6 +84,14 @@ export function redactBody(body: string | null): string | null {
 
   try {
     const parsed: unknown = JSON.parse(body);
+    if (Array.isArray(parsed)) {
+      const redacted = parsed.map((item) =>
+        typeof item === 'object' && item !== null
+          ? redactObject(item as Record<string, unknown>)
+          : item,
+      );
+      return JSON.stringify(redacted);
+    }
     if (typeof parsed === 'object' && parsed !== null) {
       const redacted = redactObject(parsed as Record<string, unknown>);
       return JSON.stringify(redacted);
