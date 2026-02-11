@@ -135,13 +135,13 @@ function estimateDataUrlSize(dataUrl: string): number {
   return Math.ceil(base64Part.length * 0.75);
 }
 
-function getImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
+async function getImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const bitmap = await createImageBitmap(blob);
+  const { width, height } = bitmap;
+  bitmap.close();
+  return { width, height };
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

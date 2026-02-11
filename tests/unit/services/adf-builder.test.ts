@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   buildFullDescription,
   buildEnvironmentTable,
+  buildPageContextTable,
   buildConsoleBlock,
 } from '../../../src/services/adf-builder';
-import type { EnvironmentSnapshot, ConsoleEntry } from '../../../src/models/types';
+import type { EnvironmentSnapshot, ConsoleEntry, PageContext } from '../../../src/models/types';
 
 const mockEnv: EnvironmentSnapshot = {
   browserName: 'Chrome',
@@ -17,6 +18,12 @@ const mockEnv: EnvironmentSnapshot = {
   devicePixelRatio: 2,
   viewportWidth: 1440,
   viewportHeight: 900,
+};
+
+const mockPageContext: PageContext = {
+  url: 'https://example.com/page',
+  title: 'Example Page',
+  readyState: 'complete',
 };
 
 const mockEntries: ConsoleEntry[] = [
@@ -41,9 +48,14 @@ describe('adf-builder', () => {
       expect(descHeading).toBeDefined();
     });
 
-    it('should skip sections when data is empty', () => {
+    it('should show placeholder text when data is empty', () => {
       const doc = buildFullDescription('', null, []);
-      expect(doc.content).toEqual([]);
+      const paragraphs = doc.content
+        .filter((n) => n.type === 'paragraph')
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(paragraphs).toContain('Not captured.');
+      expect(paragraphs).toContain('No console entries captured.');
+      expect(paragraphs).toContain('No network requests captured.');
     });
 
     it('should include environment table when present', () => {
@@ -58,14 +70,30 @@ describe('adf-builder', () => {
       expect(code).toBeDefined();
     });
 
-    it('should NOT include network code block even when requests are provided', () => {
-      // Network data is now conveyed exclusively through HAR attachment
-      const doc = buildFullDescription('description', mockEnv, mockEntries);
-      const allText = doc.content
+    it('should include page context table when provided', () => {
+      const doc = buildFullDescription('', null, [], mockPageContext);
+      const headings = doc.content
         .filter((n) => n.type === 'heading')
-        .map((n) => n.content?.[0]?.text ?? '')
-        .join(' ');
-      expect(allText).not.toContain('Network');
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(headings).toContain('Page');
+      const tables = doc.content.filter((n) => n.type === 'table');
+      expect(tables.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should show network hint with count when requests present', () => {
+      const doc = buildFullDescription('desc', mockEnv, [], mockPageContext, 42);
+      const paragraphs = doc.content
+        .filter((n) => n.type === 'paragraph')
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(paragraphs).toContain('42 requests captured — see attached HAR file.');
+    });
+
+    it('should include Network section heading', () => {
+      const doc = buildFullDescription('description', mockEnv, mockEntries);
+      const headings = doc.content
+        .filter((n) => n.type === 'heading')
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(headings).toContain('Network');
     });
   });
 
@@ -92,6 +120,25 @@ describe('adf-builder', () => {
       const dataRow = table.content?.[1]; // First data row
       const cell = dataRow?.content?.[0]; // First cell
       expect(cell?.content?.[0]?.type).toBe('paragraph');
+    });
+  });
+
+  describe('buildPageContextTable', () => {
+    it('should produce ADF table node', () => {
+      const table = buildPageContextTable(mockPageContext);
+      expect(table.type).toBe('table');
+    });
+
+    it('should have header row + 3 data rows', () => {
+      const table = buildPageContextTable(mockPageContext);
+      // Header + URL + Page Title + Ready State
+      expect(table.content).toHaveLength(4);
+    });
+
+    it('should contain the page URL', () => {
+      const table = buildPageContextTable(mockPageContext);
+      const allText = JSON.stringify(table);
+      expect(allText).toContain('https://example.com/page');
     });
   });
 

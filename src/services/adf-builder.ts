@@ -1,6 +1,7 @@
 import type {
   ConsoleEntry,
   EnvironmentSnapshot,
+  PageContext,
 } from '../models/types';
 import { MAX_CONSOLE_ENTRIES } from '../utils/constants';
 
@@ -22,6 +23,8 @@ export function buildFullDescription(
   userDescription: string,
   environment: EnvironmentSnapshot | null,
   consoleEntries: ConsoleEntry[],
+  pageContext?: PageContext | null,
+  networkRequestCount?: number,
 ): AdfDoc {
   const content: AdfNode[] = [];
 
@@ -31,10 +34,20 @@ export function buildFullDescription(
     content.push(paragraph(userDescription));
   }
 
+  // Page context
+  content.push(heading('Page', 3));
+  if (pageContext) {
+    content.push(buildPageContextTable(pageContext));
+  } else {
+    content.push(paragraph('Not captured.'));
+  }
+
   // Environment table
+  content.push(heading('Environment', 3));
   if (environment) {
-    content.push(heading('Environment', 3));
     content.push(buildEnvironmentTable(environment));
+  } else {
+    content.push(paragraph('Not captured.'));
   }
 
   // Console entries
@@ -45,9 +58,40 @@ export function buildFullDescription(
       : `Console Output (${consoleEntries.length} entries)`;
     content.push(heading(label, 3));
     content.push(buildConsoleBlock(consoleEntries));
+  } else {
+    content.push(heading('Console Output', 3));
+    content.push(paragraph('No console entries captured.'));
+  }
+
+  // Network requests hint
+  const netCount = networkRequestCount ?? 0;
+  content.push(heading('Network', 3));
+  if (netCount > 0) {
+    content.push(paragraph(`${netCount} requests captured — see attached HAR file.`));
+  } else {
+    content.push(paragraph('No network requests captured.'));
   }
 
   return { version: 1, type: 'doc', content };
+}
+
+export function buildPageContextTable(ctx: PageContext): AdfNode {
+  const rows: [string, string][] = [
+    ['URL', ctx.url],
+    ['Page Title', ctx.title],
+    ['Ready State', ctx.readyState],
+  ];
+
+  return {
+    type: 'table',
+    attrs: { isNumberColumnEnabled: false, layout: 'default' },
+    content: [
+      tableRow([tableHeader('Property'), tableHeader('Value')]),
+      ...rows.map(([property, value]) =>
+        tableRow([tableCell(property), tableCell(value)]),
+      ),
+    ],
+  };
 }
 
 export function buildEnvironmentTable(env: EnvironmentSnapshot): AdfNode {

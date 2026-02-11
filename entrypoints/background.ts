@@ -183,6 +183,8 @@ async function handleMessage(
             description,
             report.environment,
             report.consoleEntries,
+            report.pageContext,
+            report.networkRequests.length,
           );
 
           // Create issue
