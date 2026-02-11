@@ -17,6 +17,10 @@ import { generateState, validateState } from '../utils/crypto';
 const CLIENT_ID = import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? '';
 const CLIENT_SECRET = import.meta.env.VITE_ATLASSIAN_CLIENT_SECRET ?? '';
 
+if (!CLIENT_ID) {
+  console.warn('[Auth] VITE_ATLASSIAN_CLIENT_ID is not set — OAuth will fail');
+}
+
 let pendingState: string | null = null;
 
 function getRedirectUri(): string {

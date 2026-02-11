@@ -27,6 +27,9 @@ export class App {
   private projects: JiraProject[] = [];
   private issueTypes: JiraIssueType[] = [];
   private submitting = false;
+  private submitWarnings: string[] = [];
+  private projectsLoadedForSite: string | null = null;
+  private issueTypesLoadedForProject: string | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -138,6 +141,15 @@ export class App {
     });
 
     view.render(this.currentReport, this.connections, this.projects, this.issueTypes, this.submitting);
+
+    // Auto-load when defaults are pre-selected but data hasn't been fetched yet
+    const siteId = this.currentReport.targetSiteId;
+    const projectKey = this.currentReport.projectKey;
+    if (siteId && siteId !== this.projectsLoadedForSite) {
+      this.loadProjects(siteId);
+    } else if (projectKey && this.projects.length > 0 && projectKey !== this.issueTypesLoadedForProject) {
+      this.loadIssueTypes(projectKey);
+    }
   }
 
   private renderAnnotationView(container: HTMLElement): void {
@@ -182,6 +194,7 @@ export class App {
     view.render(
       this.currentReport?.submittedIssueKey ?? '',
       this.currentReport?.submittedIssueUrl ?? '',
+      this.submitWarnings.length > 0 ? this.submitWarnings : undefined,
     );
   }
 
@@ -261,6 +274,8 @@ export class App {
   }
 
   private async loadProjects(siteId: string, query: string = ''): Promise<void> {
+    this.projectsLoadedForSite = siteId;
+    this.issueTypesLoadedForProject = null;
     // Persist the selected site so it survives re-render
     if (this.currentReport) {
       this.currentReport = { ...this.currentReport, targetSiteId: siteId };
@@ -298,6 +313,7 @@ export class App {
   }
 
   private async loadIssueTypes(projectKey: string): Promise<void> {
+    this.issueTypesLoadedForProject = projectKey;
     // Persist the selected project so it survives re-render
     if (this.currentReport) {
       this.currentReport = { ...this.currentReport, projectKey };
@@ -369,6 +385,7 @@ export class App {
           submittedIssueKey: result.payload.issueKey,
           submittedIssueUrl: result.payload.issueUrl,
         };
+        this.submitWarnings = result.payload.warnings ?? [];
         await clearPendingReport();
         this.submitting = false;
         this.navigateTo('success');

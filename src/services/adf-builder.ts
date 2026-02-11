@@ -1,9 +1,9 @@
 import type {
   ConsoleEntry,
-  NetworkRequest,
   EnvironmentSnapshot,
+  PageContext,
 } from '../models/types';
-import { MAX_CONSOLE_ENTRIES, MAX_NETWORK_REQUESTS } from '../utils/constants';
+import { MAX_CONSOLE_ENTRIES } from '../utils/constants';
 
 // ADF Node types
 interface AdfDoc {
@@ -23,7 +23,8 @@ export function buildFullDescription(
   userDescription: string,
   environment: EnvironmentSnapshot | null,
   consoleEntries: ConsoleEntry[],
-  networkRequests: NetworkRequest[],
+  pageContext?: PageContext | null,
+  networkRequestCount?: number,
 ): AdfDoc {
   const content: AdfNode[] = [];
 
@@ -33,10 +34,20 @@ export function buildFullDescription(
     content.push(paragraph(userDescription));
   }
 
+  // Page context
+  content.push(heading('Page', 3));
+  if (pageContext) {
+    content.push(buildPageContextTable(pageContext));
+  } else {
+    content.push(paragraph('Not captured.'));
+  }
+
   // Environment table
+  content.push(heading('Environment', 3));
   if (environment) {
-    content.push(heading('Environment', 3));
     content.push(buildEnvironmentTable(environment));
+  } else {
+    content.push(paragraph('Not captured.'));
   }
 
   // Console entries
@@ -47,19 +58,40 @@ export function buildFullDescription(
       : `Console Output (${consoleEntries.length} entries)`;
     content.push(heading(label, 3));
     content.push(buildConsoleBlock(consoleEntries));
+  } else {
+    content.push(heading('Console Output', 3));
+    content.push(paragraph('No console entries captured.'));
   }
 
-  // Network requests
-  if (networkRequests.length > 0) {
-    const truncated = networkRequests.length >= MAX_NETWORK_REQUESTS;
-    const label = truncated
-      ? `Network Requests (${networkRequests.length} — buffer limit reached)`
-      : `Network Requests (${networkRequests.length})`;
-    content.push(heading(label, 3));
-    content.push(buildNetworkBlock(networkRequests));
+  // Network requests hint
+  const netCount = networkRequestCount ?? 0;
+  content.push(heading('Network', 3));
+  if (netCount > 0) {
+    content.push(paragraph(`${netCount} requests captured — see attached HAR file.`));
+  } else {
+    content.push(paragraph('No network requests captured.'));
   }
 
   return { version: 1, type: 'doc', content };
+}
+
+export function buildPageContextTable(ctx: PageContext): AdfNode {
+  const rows: [string, string][] = [
+    ['URL', ctx.url],
+    ['Page Title', ctx.title],
+    ['Ready State', ctx.readyState],
+  ];
+
+  return {
+    type: 'table',
+    attrs: { isNumberColumnEnabled: false, layout: 'default' },
+    content: [
+      tableRow([tableHeader('Property'), tableHeader('Value')]),
+      ...rows.map(([property, value]) =>
+        tableRow([tableCell(property), tableCell(value)]),
+      ),
+    ],
+  };
 }
 
 export function buildEnvironmentTable(env: EnvironmentSnapshot): AdfNode {
@@ -94,28 +126,6 @@ export function buildConsoleBlock(entries: ConsoleEntry[]): AdfNode {
   });
 
   return codeBlock(lines.join('\n'), 'text');
-}
-
-export function buildNetworkBlock(requests: NetworkRequest[]): AdfNode {
-  const formatted = requests.map((req) => {
-    const status = req.statusCode ?? 'pending';
-    const duration = req.duration != null ? `${req.duration}ms` : '-';
-    const size = req.responseSize != null ? formatBytes(req.responseSize) : '-';
-    const error = req.error ? ` ERROR: ${req.error}` : '';
-
-    let line = `${req.method} ${req.url} → ${status} (${duration}, ${size})${error}`;
-
-    if (req.requestBody) {
-      line += `\n  Request Body: ${req.requestBody}`;
-    }
-    if (req.responseBody) {
-      line += `\n  Response Body: ${req.responseBody}`;
-    }
-
-    return line;
-  });
-
-  return codeBlock(formatted.join('\n\n'), 'text');
 }
 
 // ADF helper functions
@@ -161,8 +171,3 @@ function tableCell(text: string): AdfNode {
   };
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}

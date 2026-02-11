@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   buildFullDescription,
   buildEnvironmentTable,
+  buildPageContextTable,
   buildConsoleBlock,
-  buildNetworkBlock,
 } from '../../../src/services/adf-builder';
-import type { EnvironmentSnapshot, ConsoleEntry, NetworkRequest } from '../../../src/models/types';
+import type { EnvironmentSnapshot, ConsoleEntry, PageContext } from '../../../src/models/types';
 
 const mockEnv: EnvironmentSnapshot = {
   browserName: 'Chrome',
@@ -20,66 +20,80 @@ const mockEnv: EnvironmentSnapshot = {
   viewportHeight: 900,
 };
 
+const mockPageContext: PageContext = {
+  url: 'https://example.com/page',
+  title: 'Example Page',
+  readyState: 'complete',
+};
+
 const mockEntries: ConsoleEntry[] = [
   { timestamp: 1700000000000, level: 'log', message: 'loaded', source: null },
   { timestamp: 1700000001000, level: 'error', message: 'fail', source: 'app.js:10' },
 ];
 
-const mockRequests: NetworkRequest[] = [
-  {
-    id: 'r1',
-    method: 'GET',
-    url: 'https://api.test/data',
-    statusCode: 200,
-    type: 'xhr',
-    startTime: 1700000000000,
-    endTime: 1700000000100,
-    duration: 100,
-    responseSize: 1024,
-    requestBody: null,
-    responseBody: '{"ok":true}',
-    error: null,
-  },
-];
-
 describe('adf-builder', () => {
   describe('buildFullDescription', () => {
     it('should produce valid ADF document', () => {
-      const doc = buildFullDescription('Bug description', mockEnv, mockEntries, mockRequests);
+      const doc = buildFullDescription('Bug description', mockEnv, mockEntries);
       expect(doc.version).toBe(1);
       expect(doc.type).toBe('doc');
       expect(doc.content.length).toBeGreaterThan(0);
     });
 
     it('should include user description as paragraph', () => {
-      const doc = buildFullDescription('My bug desc', null, [], []);
+      const doc = buildFullDescription('My bug desc', null, []);
       const descHeading = doc.content.find(
         (n) => n.type === 'heading' && n.content?.[0]?.text === 'Description',
       );
       expect(descHeading).toBeDefined();
     });
 
-    it('should skip sections when data is empty', () => {
-      const doc = buildFullDescription('', null, [], []);
-      expect(doc.content).toEqual([]);
+    it('should show placeholder text when data is empty', () => {
+      const doc = buildFullDescription('', null, []);
+      const paragraphs = doc.content
+        .filter((n) => n.type === 'paragraph')
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(paragraphs).toContain('Not captured.');
+      expect(paragraphs).toContain('No console entries captured.');
+      expect(paragraphs).toContain('No network requests captured.');
     });
 
     it('should include environment table when present', () => {
-      const doc = buildFullDescription('', mockEnv, [], []);
+      const doc = buildFullDescription('', mockEnv, []);
       const table = doc.content.find((n) => n.type === 'table');
       expect(table).toBeDefined();
     });
 
     it('should include console codeBlock when entries present', () => {
-      const doc = buildFullDescription('', null, mockEntries, []);
+      const doc = buildFullDescription('', null, mockEntries);
       const code = doc.content.find((n) => n.type === 'codeBlock');
       expect(code).toBeDefined();
     });
 
-    it('should include network codeBlock when requests present', () => {
-      const doc = buildFullDescription('', null, [], mockRequests);
-      const code = doc.content.find((n) => n.type === 'codeBlock');
-      expect(code).toBeDefined();
+    it('should include page context table when provided', () => {
+      const doc = buildFullDescription('', null, [], mockPageContext);
+      const headings = doc.content
+        .filter((n) => n.type === 'heading')
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(headings).toContain('Page');
+      const tables = doc.content.filter((n) => n.type === 'table');
+      expect(tables.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should show network hint with count when requests present', () => {
+      const doc = buildFullDescription('desc', mockEnv, [], mockPageContext, 42);
+      const paragraphs = doc.content
+        .filter((n) => n.type === 'paragraph')
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(paragraphs).toContain('42 requests captured — see attached HAR file.');
+    });
+
+    it('should include Network section heading', () => {
+      const doc = buildFullDescription('description', mockEnv, mockEntries);
+      const headings = doc.content
+        .filter((n) => n.type === 'heading')
+        .map((n) => n.content?.[0]?.text ?? '');
+      expect(headings).toContain('Network');
     });
   });
 
@@ -109,6 +123,25 @@ describe('adf-builder', () => {
     });
   });
 
+  describe('buildPageContextTable', () => {
+    it('should produce ADF table node', () => {
+      const table = buildPageContextTable(mockPageContext);
+      expect(table.type).toBe('table');
+    });
+
+    it('should have header row + 3 data rows', () => {
+      const table = buildPageContextTable(mockPageContext);
+      // Header + URL + Page Title + Ready State
+      expect(table.content).toHaveLength(4);
+    });
+
+    it('should contain the page URL', () => {
+      const table = buildPageContextTable(mockPageContext);
+      const allText = JSON.stringify(table);
+      expect(allText).toContain('https://example.com/page');
+    });
+  });
+
   describe('buildConsoleBlock', () => {
     it('should produce codeBlock with language text', () => {
       const block = buildConsoleBlock(mockEntries);
@@ -132,26 +165,4 @@ describe('adf-builder', () => {
     });
   });
 
-  describe('buildNetworkBlock', () => {
-    it('should produce codeBlock', () => {
-      const block = buildNetworkBlock(mockRequests);
-      expect(block.type).toBe('codeBlock');
-    });
-
-    it('should include method, URL, status, duration', () => {
-      const block = buildNetworkBlock(mockRequests);
-      const text = block.content?.[0]?.text ?? '';
-      expect(text).toContain('GET');
-      expect(text).toContain('https://api.test/data');
-      expect(text).toContain('200');
-      expect(text).toContain('100ms');
-    });
-
-    it('should include response body when present', () => {
-      const block = buildNetworkBlock(mockRequests);
-      const text = block.content?.[0]?.text ?? '';
-      expect(text).toContain('Response Body');
-      expect(text).toContain('{"ok":true}');
-    });
-  });
 });

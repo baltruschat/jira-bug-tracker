@@ -40,7 +40,8 @@ export async function captureAll(tabId: number): Promise<BugReport> {
   try {
     const screenshot = await captureScreenshot();
     report.screenshot = await compressScreenshot(screenshot);
-  } catch {
+  } catch (err) {
+    console.error('[Capture] Screenshot failed:', err);
     report.screenshot = null;
   }
 
@@ -72,8 +73,8 @@ export async function captureAll(tabId: number): Promise<BugReport> {
         report.pageContext = response.payload.pageContext;
         report.environment = response.payload.environment;
       }
-    } catch {
-      // Content script may not be available (e.g., chrome:// pages)
+    } catch (err) {
+      console.error('[Capture] Content script unavailable:', err);
     }
   }
 

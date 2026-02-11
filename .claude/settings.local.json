@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/Users/baltruschat/www/jira-bug-tracker/.specify/scripts/bash/create-new-feature.sh:*)",
+      "Bash(.specify/scripts/bash/setup-plan.sh:*)",
+      "WebFetch(domain:www.softwareishard.com)",
+      "WebFetch(domain:w3c.github.io)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:chromium.googlesource.com)",
+      "Bash(/Users/baltruschat/www/jira-bug-tracker/.specify/scripts/bash/update-agent-context.sh:*)",
+      "Bash(/Users/baltruschat/www/jira-bug-tracker/.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(pnpm run lint:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(find:*)",
+      "Bash(pnpm test:e2e:*)",
+      "Bash(npx playwright test:*)"
+    ]
+  }
+}
