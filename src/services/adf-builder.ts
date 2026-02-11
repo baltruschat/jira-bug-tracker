@@ -1,9 +1,8 @@
 import type {
   ConsoleEntry,
-  NetworkRequest,
   EnvironmentSnapshot,
 } from '../models/types';
-import { MAX_CONSOLE_ENTRIES, MAX_NETWORK_REQUESTS } from '../utils/constants';
+import { MAX_CONSOLE_ENTRIES } from '../utils/constants';
 
 // ADF Node types
 interface AdfDoc {
@@ -23,7 +22,6 @@ export function buildFullDescription(
   userDescription: string,
   environment: EnvironmentSnapshot | null,
   consoleEntries: ConsoleEntry[],
-  networkRequests: NetworkRequest[],
 ): AdfDoc {
   const content: AdfNode[] = [];
 
@@ -47,16 +45,6 @@ export function buildFullDescription(
       : `Console Output (${consoleEntries.length} entries)`;
     content.push(heading(label, 3));
     content.push(buildConsoleBlock(consoleEntries));
-  }
-
-  // Network requests
-  if (networkRequests.length > 0) {
-    const truncated = networkRequests.length >= MAX_NETWORK_REQUESTS;
-    const label = truncated
-      ? `Network Requests (${networkRequests.length} — buffer limit reached)`
-      : `Network Requests (${networkRequests.length})`;
-    content.push(heading(label, 3));
-    content.push(buildNetworkBlock(networkRequests));
   }
 
   return { version: 1, type: 'doc', content };
@@ -94,28 +82,6 @@ export function buildConsoleBlock(entries: ConsoleEntry[]): AdfNode {
   });
 
   return codeBlock(lines.join('\n'), 'text');
-}
-
-export function buildNetworkBlock(requests: NetworkRequest[]): AdfNode {
-  const formatted = requests.map((req) => {
-    const status = req.statusCode ?? 'pending';
-    const duration = req.duration != null ? `${req.duration}ms` : '-';
-    const size = req.responseSize != null ? formatBytes(req.responseSize) : '-';
-    const error = req.error ? ` ERROR: ${req.error}` : '';
-
-    let line = `${req.method} ${req.url} → ${status} (${duration}, ${size})${error}`;
-
-    if (req.requestBody) {
-      line += `\n  Request Body: ${req.requestBody}`;
-    }
-    if (req.responseBody) {
-      line += `\n  Response Body: ${req.responseBody}`;
-    }
-
-    return line;
-  });
-
-  return codeBlock(formatted.join('\n\n'), 'text');
 }
 
 // ADF helper functions
@@ -161,8 +127,3 @@ function tableCell(text: string): AdfNode {
   };
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}

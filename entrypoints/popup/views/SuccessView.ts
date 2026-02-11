@@ -10,7 +10,7 @@ export class SuccessView {
     this.onNewReport = callbacks.onNewReport;
   }
 
-  render(issueKey: string, issueUrl: string): void {
+  render(issueKey: string, issueUrl: string, warnings?: string[]): void {
     this.container.innerHTML = '';
 
     const wrapper = document.createElement('div');
@@ -29,6 +29,19 @@ export class SuccessView {
         <div style="font-size:12px;color:#5e6c84;margin-top:4px;">Click to view in Jira</div>
       </div>
     `;
+
+    if (warnings && warnings.length > 0) {
+      const warningsDiv = document.createElement('div');
+      warningsDiv.style.cssText =
+        'margin-bottom:16px;padding:8px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:4px;color:#856404;font-size:13px;text-align:left;';
+      for (const warning of warnings) {
+        const p = document.createElement('p');
+        p.style.cssText = 'margin:4px 0;';
+        p.textContent = warning;
+        warningsDiv.appendChild(p);
+      }
+      wrapper.appendChild(warningsDiv);
+    }
 
     const newBtn = document.createElement('button');
     newBtn.className = 'btn btn-primary';
