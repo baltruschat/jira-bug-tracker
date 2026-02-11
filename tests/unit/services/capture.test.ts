@@ -70,9 +70,7 @@ describe('capture orchestrator', () => {
     vi.spyOn(screenshotService, 'captureScreenshot').mockResolvedValue(mockScreenshot);
     vi.spyOn(screenshotService, 'compressScreenshot').mockResolvedValue(mockScreenshot);
     vi.spyOn(consoleCollector, 'getEntries').mockResolvedValue(mockConsoleEntries);
-    vi.spyOn(consoleCollector, 'clearBuffer').mockResolvedValue(undefined);
     vi.spyOn(networkCollector, 'getRequests').mockResolvedValue(mockNetworkRequests);
-    vi.spyOn(networkCollector, 'clearBuffer').mockResolvedValue(undefined);
     mockTabsSendMessage(mockCaptureResult);
 
     const report = await captureAll(1);
@@ -92,7 +90,6 @@ describe('capture orchestrator', () => {
     vi.spyOn(screenshotService, 'compressScreenshot').mockResolvedValue(mockScreenshot);
     vi.spyOn(consoleCollector, 'getEntries').mockResolvedValue(mockConsoleEntries);
     vi.spyOn(networkCollector, 'getRequests').mockResolvedValue([]);
-    vi.spyOn(networkCollector, 'clearBuffer').mockResolvedValue(undefined);
     mockTabsSendMessage(null);
 
     await fakeBrowser.storage.local.set({
@@ -117,7 +114,6 @@ describe('capture orchestrator', () => {
     vi.spyOn(screenshotService, 'captureScreenshot').mockResolvedValue(mockScreenshot);
     vi.spyOn(screenshotService, 'compressScreenshot').mockResolvedValue(mockScreenshot);
     vi.spyOn(consoleCollector, 'getEntries').mockResolvedValue([]);
-    vi.spyOn(consoleCollector, 'clearBuffer').mockResolvedValue(undefined);
     vi.spyOn(networkCollector, 'getRequests').mockResolvedValue(mockNetworkRequests);
     mockTabsSendMessage(null);
 
@@ -144,9 +140,7 @@ describe('capture orchestrator', () => {
       new Error('Cannot capture on chrome:// page'),
     );
     vi.spyOn(consoleCollector, 'getEntries').mockResolvedValue([]);
-    vi.spyOn(consoleCollector, 'clearBuffer').mockResolvedValue(undefined);
     vi.spyOn(networkCollector, 'getRequests').mockResolvedValue([]);
-    vi.spyOn(networkCollector, 'clearBuffer').mockResolvedValue(undefined);
     mockTabsSendMessage(null);
 
     await fakeBrowser.storage.local.set({
