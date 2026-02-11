@@ -16,7 +16,10 @@
       "Bash(pnpm run build:*)",
       "Bash(find:*)",
       "Bash(pnpm test:e2e:*)",
-      "Bash(npx playwright test:*)"
+      "Bash(npx playwright test:*)",
+      "WebFetch(domain:bundlephobia.com)",
+      "WebFetch(domain:platform.openai.com)",
+      "Bash(.specify/scripts/bash/update-agent-context.sh:*)"
     ]
   }
 }
